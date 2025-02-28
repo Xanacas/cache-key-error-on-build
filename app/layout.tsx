@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 export default async function RootLayout({
     children,
@@ -7,7 +8,9 @@ export default async function RootLayout({
 }>) {
     return (
         <html lang="en">
-            <body>{children}</body>
+            <body>
+                <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
+            </body>
         </html>
     );
 }

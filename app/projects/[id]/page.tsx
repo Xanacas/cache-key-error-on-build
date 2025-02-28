@@ -1,13 +1,19 @@
-import { unstable_cacheLife as cacheLife } from "next/cache";
-import { unstable_cacheTag as cacheTag } from "next/cache";
-
+import ProjectComponent from "./component";
+import { Suspense } from "react";
 export default async function ProjectPage({
     params,
 }: {
     params: Promise<{ id: string }>;
 }) {
     "use cache";
-    const { id } = await params;
+    const paramsPromise = params;
 
-    return <>{id}</>;
+    return (
+        <Suspense fallback={<div>Loading...</div>}>
+            <ProjectComponent params={paramsPromise} />
+        </Suspense>
+    );
 }
+export const generateStaticParams = async () => {
+    return [{ id: "1" }, { id: "2" }];
+};
