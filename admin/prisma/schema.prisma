@@ -1,0 +1,238 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ─── Provider ───────────────────────────────────────────────
+
+model Provider {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  authType  String   // "api_key" | "oauth"
+  baseUrls  String   // JSON array of base URLs
+  isBuiltIn Boolean  @default(false)
+
+  // OAuth endpoints (nullable for api_key providers)
+  authUrl    String?
+  tokenUrl   String?
+  refreshUrl String?
+  scopes     String? // JSON array of scopes
+  redirectUrl String?
+
+  // LLM-specific
+  isLlmProvider Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  credentials  Credential[]
+  tokens       Token[]
+  appProviders AppProvider[]
+  usageRecords TokenUsage[]
+  mockCaptures MockCapture[]
+}
+
+// ─── App Instance ───────────────────────────────────────────
+
+model AppInstance {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  dummyApiKey String   @unique // unique dummy key to identify this app
+  isActive    Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  appProviders    AppProvider[]
+  tokens          Token[]
+  usageRecords    TokenUsage[]
+  registryRules   RegistryRule[]
+  firewallRules   FirewallRule[]
+  requestLogs     RequestLog[]
+  mockCaptures    MockCapture[]
+  alertConfigs    AlertConfig[]
+}
+
+// ─── App ↔ Provider join table ──────────────────────────────
+
+model AppProvider {
+  id         String @id @default(uuid())
+  appId      String
+  providerId String
+
+  app      AppInstance @relation(fields: [appId], references: [id], onDelete: Cascade)
+  provider Provider    @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  credentialId String?
+  credential   Credential? @relation(fields: [credentialId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([appId, providerId])
+}
+
+// ─── Credentials ────────────────────────────────────────────
+
+model Credential {
+  id         String @id @default(uuid())
+  providerId String
+
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  // API-Key auth
+  apiKeyEncrypted String?
+
+  // OAuth credentials
+  clientId          String?
+  clientSecretEncrypted String?
+
+  label String? // human-readable label
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  appProviders AppProvider[]
+  tokens       Token[]
+}
+
+// ─── Tokens ─────────────────────────────────────────────────
+
+model Token {
+  id           String @id @default(uuid())
+  providerId   String
+  appId        String
+  credentialId String
+
+  provider   Provider    @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  app        AppInstance @relation(fields: [appId], references: [id], onDelete: Cascade)
+  credential Credential  @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+
+  accessTokenEncrypted  String
+  refreshTokenEncrypted String?
+  expiresAt             DateTime?
+  tokenType             String @default("bearer")
+  scope                 String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── LLM Token Usage ────────────────────────────────────────
+
+model TokenUsage {
+  id         String   @id @default(uuid())
+  providerId String
+  appId      String
+
+  provider Provider    @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  app      AppInstance @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  model        String?
+  inputTokens  Int
+  outputTokens Int
+  totalTokens  Int
+  requestPath  String?
+
+  createdAt DateTime @default(now())
+}
+
+// ─── Alert & Limit Configuration ────────────────────────────
+
+model AlertConfig {
+  id    String @id @default(uuid())
+  appId String
+
+  app AppInstance @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  limitType  String // "daily" | "per_app" | "per_provider"
+  providerId String? // null = applies to all providers
+  threshold  Int    // alert threshold (token count)
+  hardLimit  Int?   // hard block threshold
+  isActive   Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Registry Rules (method/path control) ───────────────────
+
+model RegistryRule {
+  id    String @id @default(uuid())
+  appId String
+
+  app AppInstance @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  domain          String  // target domain
+  allowedMethods  String  // JSON array: ["GET","POST"]
+  pathPattern     String  // regex pattern for allowed paths
+  rateLimit       Int?    // requests per minute, null = unlimited
+  isActive        Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Firewall Rules ─────────────────────────────────────────
+
+model FirewallRule {
+  id    String @id @default(uuid())
+  appId String? // null = global rule
+
+  app AppInstance? @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  ruleType String // "domain" | "path" | "header"
+  pattern  String // regex or exact match
+  action   String // "block" | "bypass"
+  priority Int    @default(0)
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Request Log ────────────────────────────────────────────
+
+model RequestLog {
+  id    String @id @default(uuid())
+  appId String?
+
+  app AppInstance? @relation(fields: [appId], references: [id], onDelete: SetNull)
+
+  method     String
+  host       String
+  path       String
+  statusCode Int?
+  action     String // "forwarded" | "blocked" | "manipulated" | "mocked"
+  details    String? // JSON: extra info (token refresh, rule matched, etc.)
+  duration   Int?    // ms
+
+  createdAt DateTime @default(now())
+}
+
+// ─── Mock Capture ───────────────────────────────────────────
+
+model MockCapture {
+  id         String @id @default(uuid())
+  providerId String?
+  appId      String?
+
+  provider Provider?    @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  app      AppInstance? @relation(fields: [appId], references: [id], onDelete: SetNull)
+
+  method          String
+  urlPattern      String
+  requestHeaders  String? // JSON
+  requestBody     String? // stored body
+  responseStatus  Int
+  responseHeaders String? // JSON
+  responseBody    String? // stored body
+  isSimulation    Boolean @default(false) // if true, proxy returns this instead of forwarding
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
