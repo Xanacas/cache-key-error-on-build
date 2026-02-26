@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { encryptIfAvailable } from "@/lib/crypto";
 
 export async function GET() {
   try {
@@ -10,12 +11,21 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json(credentials);
+    // Mask encrypted fields for display – never return raw secrets
+    const masked = credentials.map((c: typeof credentials[number]) => ({
+      ...c,
+      apiKeyEncrypted: c.apiKeyEncrypted ? "***encrypted***" : null,
+      clientSecretEncrypted: c.clientSecretEncrypted
+        ? "***encrypted***"
+        : null,
+    }));
+
+    return NextResponse.json(masked);
   } catch (error) {
     console.error("Failed to list credentials:", error);
     return NextResponse.json(
       { error: "Failed to list credentials" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -28,27 +38,29 @@ export async function POST(request: NextRequest) {
     if (!providerId) {
       return NextResponse.json(
         { error: "providerId is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    // Verify the provider exists
-    const provider = await prisma.provider.findUnique({ where: { id: providerId } });
+    const provider = await prisma.provider.findUnique({
+      where: { id: providerId },
+    });
     if (!provider) {
       return NextResponse.json(
         { error: "Provider not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
-    // TODO: In a real implementation, apiKey and clientSecret would be encrypted before storage.
-    // For now, store as-is.
+    // Encrypt secrets before storage
     const credential = await prisma.credential.create({
       data: {
         providerId,
-        apiKeyEncrypted: apiKey ?? null,
+        apiKeyEncrypted: apiKey ? encryptIfAvailable(apiKey) : null,
         clientId: clientId ?? null,
-        clientSecretEncrypted: clientSecret ?? null,
+        clientSecretEncrypted: clientSecret
+          ? encryptIfAvailable(clientSecret)
+          : null,
         label: label ?? null,
       },
       include: {
@@ -56,12 +68,23 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(credential, { status: 201 });
+    return NextResponse.json(
+      {
+        ...credential,
+        apiKeyEncrypted: credential.apiKeyEncrypted
+          ? "***encrypted***"
+          : null,
+        clientSecretEncrypted: credential.clientSecretEncrypted
+          ? "***encrypted***"
+          : null,
+      },
+      { status: 201 },
+    );
   } catch (error) {
     console.error("Failed to create credential:", error);
     return NextResponse.json(
       { error: "Failed to create credential" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

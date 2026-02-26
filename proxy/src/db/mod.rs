@@ -1,4 +1,4 @@
-use chrono::{NaiveDateTime, Utc};
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::{FromRow, SqlitePool};
@@ -371,6 +371,14 @@ impl Database {
                 is_simulation    BOOLEAN,
                 created_at       TEXT,
                 updated_at       TEXT
+            )
+            "#,
+            r#"
+            CREATE TABLE IF NOT EXISTS oauth_callbacks (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                code        TEXT NOT NULL,
+                state       TEXT,
+                received_at TEXT NOT NULL
             )
             "#,
         ];

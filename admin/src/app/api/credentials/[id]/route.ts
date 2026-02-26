@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { encryptIfAvailable } from "@/lib/crypto";
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
@@ -17,33 +18,45 @@ export async function GET(
     if (!credential) {
       return NextResponse.json(
         { error: "Credential not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
-    return NextResponse.json(credential);
+    // Mask secrets
+    return NextResponse.json({
+      ...credential,
+      apiKeyEncrypted: credential.apiKeyEncrypted ? "***encrypted***" : null,
+      clientSecretEncrypted: credential.clientSecretEncrypted
+        ? "***encrypted***"
+        : null,
+    });
   } catch (error) {
     console.error("Failed to get credential:", error);
     return NextResponse.json(
       { error: "Failed to get credential" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
     const body = await request.json();
 
-    // TODO: In a real implementation, encrypt apiKey and clientSecret before storage.
     const updateData: Record<string, unknown> = {};
-    if (body.apiKey !== undefined) updateData.apiKeyEncrypted = body.apiKey;
+    if (body.apiKey !== undefined)
+      updateData.apiKeyEncrypted = body.apiKey
+        ? encryptIfAvailable(body.apiKey)
+        : null;
     if (body.clientId !== undefined) updateData.clientId = body.clientId;
-    if (body.clientSecret !== undefined) updateData.clientSecretEncrypted = body.clientSecret;
+    if (body.clientSecret !== undefined)
+      updateData.clientSecretEncrypted = body.clientSecret
+        ? encryptIfAvailable(body.clientSecret)
+        : null;
     if (body.label !== undefined) updateData.label = body.label;
     if (body.providerId !== undefined) updateData.providerId = body.providerId;
 
@@ -55,19 +68,25 @@ export async function PUT(
       },
     });
 
-    return NextResponse.json(credential);
+    return NextResponse.json({
+      ...credential,
+      apiKeyEncrypted: credential.apiKeyEncrypted ? "***encrypted***" : null,
+      clientSecretEncrypted: credential.clientSecretEncrypted
+        ? "***encrypted***"
+        : null,
+    });
   } catch (error) {
     console.error("Failed to update credential:", error);
     return NextResponse.json(
       { error: "Failed to update credential" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
@@ -77,7 +96,7 @@ export async function DELETE(
     console.error("Failed to delete credential:", error);
     return NextResponse.json(
       { error: "Failed to delete credential" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

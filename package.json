@@ -7,10 +7,15 @@
     "dev:proxy": "cd proxy && cargo run",
     "build:admin": "cd admin && bun run build",
     "build:proxy": "cd proxy && cargo build --release",
+    "test:proxy": "cd proxy && cargo test",
     "db:generate": "cd admin && bunx prisma generate",
     "db:push": "cd admin && bunx prisma db push",
     "db:studio": "cd admin && bunx prisma studio",
     "lint": "cd admin && bun run lint",
-    "format": "cd admin && bun run format"
+    "format": "cd admin && bun run format",
+    "docker:build": "docker compose build",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:test": "docker compose --profile test up --build --abort-on-container-exit test-runner"
   }
 }

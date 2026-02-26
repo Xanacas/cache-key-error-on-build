@@ -1,0 +1,62 @@
+version: "3.8"
+
+services:
+  proxy:
+    build:
+      context: ./proxy
+      dockerfile: Dockerfile
+    ports:
+      - "8888:8888"   # Proxy
+      - "8889:8889"   # Management API
+    volumes:
+      - shared-data:/app/data
+    environment:
+      - DATABASE_PATH=/app/data/proxy.db
+      - MASTER_KEY_PATH=/app/data/master.key
+      - PROXY_PORT=8888
+      - MGMT_PORT=8889
+      - RUST_LOG=info
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8889/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  admin:
+    build:
+      context: ./admin
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - shared-data:/app/data
+    environment:
+      - DATABASE_URL=file:/app/data/proxy.db
+      - MASTER_KEY_PATH=/app/data/master.key
+      - PROXY_MANAGEMENT_URL=http://proxy:8889
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+      - SESSION_SECRET=${SESSION_SECRET:-change-me-in-production}
+      - NODE_ENV=production
+    depends_on:
+      proxy:
+        condition: service_healthy
+
+  # Integration test container
+  test-runner:
+    build:
+      context: ./test-project
+      dockerfile: Dockerfile
+    environment:
+      - PROXY_URL=http://proxy:8888
+      - ADMIN_URL=http://admin:3000
+      - MGMT_URL=http://proxy:8889
+    depends_on:
+      proxy:
+        condition: service_healthy
+      admin:
+        condition: service_started
+    profiles:
+      - test
+
+volumes:
+  shared-data:
