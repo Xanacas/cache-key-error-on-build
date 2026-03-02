@@ -1,6 +1,11 @@
 -- ============================================================================
 -- API Proxy – Schema + Seed Data
--- Run with: sqlite3 /path/to/proxy.db < seed.sql
+--
+-- Seeds the structure: providers, app, credential stubs, app-provider links,
+-- registry rules, firewall rules, alert configs, mock captures.
+--
+-- Credentials start EMPTY.  Configure real values through the admin panel
+-- at http://localhost:3000 after startup.
 -- ============================================================================
 
 PRAGMA journal_mode=WAL;
@@ -152,20 +157,28 @@ CREATE TABLE IF NOT EXISTS oauth_callbacks (
     received_at TEXT NOT NULL
 );
 
--- ---------------------------------------------------------------------------
--- Providers
--- ---------------------------------------------------------------------------
+-- =========================================================================
+-- PROVIDERS
+-- =========================================================================
 
+-- Google  (OAuth – client_id + client_secret, used for Sheets / Calendar / Drive)
 INSERT OR IGNORE INTO providers (id, name, auth_type, base_urls, is_built_in, auth_url, token_url, refresh_url, scopes, redirect_url, is_llm_provider, created_at, updated_at)
 VALUES (
     '10000000-0000-0000-0000-000000000001',
     'google',
-    'api_key',
+    'oauth',
     '["https://sheets.googleapis.com","https://www.googleapis.com","https://calendar-json.googleapis.com","https://drive.googleapis.com"]',
-    0, NULL, NULL, NULL, NULL, NULL, 0,
+    0,
+    'https://accounts.google.com/o/oauth2/v2/auth',
+    'https://oauth2.googleapis.com/token',
+    'https://oauth2.googleapis.com/token',
+    '["https://www.googleapis.com/auth/spreadsheets","https://www.googleapis.com/auth/calendar","https://www.googleapis.com/auth/drive.readonly"]',
+    'http://localhost:8889/oauth/callback',
+    0,
     datetime('now'), datetime('now')
 );
 
+-- Miro  (Bearer access token)
 INSERT OR IGNORE INTO providers (id, name, auth_type, base_urls, is_built_in, auth_url, token_url, refresh_url, scopes, redirect_url, is_llm_provider, created_at, updated_at)
 VALUES (
     '10000000-0000-0000-0000-000000000002',
@@ -181,6 +194,7 @@ VALUES (
     datetime('now'), datetime('now')
 );
 
+-- Asana  (Personal Access Token as Bearer)
 INSERT OR IGNORE INTO providers (id, name, auth_type, base_urls, is_built_in, auth_url, token_url, refresh_url, scopes, redirect_url, is_llm_provider, created_at, updated_at)
 VALUES (
     '10000000-0000-0000-0000-000000000003',
@@ -191,9 +205,9 @@ VALUES (
     datetime('now'), datetime('now')
 );
 
--- ---------------------------------------------------------------------------
--- Application
--- ---------------------------------------------------------------------------
+-- =========================================================================
+-- APPLICATION
+-- =========================================================================
 
 INSERT OR IGNORE INTO app_instances (id, name, description, dummy_api_key, is_active, created_at, updated_at)
 VALUES (
@@ -205,40 +219,49 @@ VALUES (
     datetime('now'), datetime('now')
 );
 
--- ---------------------------------------------------------------------------
--- Credentials  (plaintext placeholders – replaced by init.sh from env vars)
--- The proxy falls back to plaintext when decryption fails, so these work
--- immediately.  Once you update credentials via the admin UI they get
--- AES-256-GCM encrypted automatically.
--- ---------------------------------------------------------------------------
+-- =========================================================================
+-- CREDENTIALS  (empty stubs – fill via admin panel at http://localhost:3000)
+--
+--   Google:  set client_id  +  client_secret   (OAuth)
+--   Miro:    set api_key                       (access token)
+--   Asana:   set api_key                       (personal access token)
+--
+-- The admin UI encrypts values with AES-256-GCM before storing.
+-- =========================================================================
 
+-- Google credential stub  (OAuth: needs client_id + client_secret)
 INSERT OR IGNORE INTO credentials (id, provider_id, api_key_encrypted, client_id, client_secret_encrypted, label, created_at, updated_at)
 VALUES (
     '30000000-0000-0000-0000-000000000001',
     '10000000-0000-0000-0000-000000000001',
-    '__GOOGLE_API_KEY__', NULL, NULL, 'Google API Key',
+    NULL, NULL, NULL,
+    'Google OAuth Credential',
     datetime('now'), datetime('now')
 );
 
+-- Miro credential stub  (needs access token in api_key field)
 INSERT OR IGNORE INTO credentials (id, provider_id, api_key_encrypted, client_id, client_secret_encrypted, label, created_at, updated_at)
 VALUES (
     '30000000-0000-0000-0000-000000000002',
     '10000000-0000-0000-0000-000000000002',
-    '__MIRO_ACCESS_TOKEN__', NULL, NULL, 'Miro Access Token',
+    NULL, NULL, NULL,
+    'Miro Access Token',
     datetime('now'), datetime('now')
 );
 
+-- Asana credential stub  (needs personal access token in api_key field)
 INSERT OR IGNORE INTO credentials (id, provider_id, api_key_encrypted, client_id, client_secret_encrypted, label, created_at, updated_at)
 VALUES (
     '30000000-0000-0000-0000-000000000003',
     '10000000-0000-0000-0000-000000000003',
-    '__ASANA_ACCESS_TOKEN__', NULL, NULL, 'Asana Personal Access Token',
+    NULL, NULL, NULL,
+    'Asana Personal Access Token',
     datetime('now'), datetime('now')
 );
 
--- ---------------------------------------------------------------------------
--- App <-> Provider links (with credential references)
--- ---------------------------------------------------------------------------
+-- =========================================================================
+-- APP <-> PROVIDER LINKS  (with credential stubs attached)
+-- =========================================================================
 
 INSERT OR IGNORE INTO app_providers (id, app_id, provider_id, credential_id, created_at)
 VALUES (
@@ -267,9 +290,9 @@ VALUES (
     datetime('now')
 );
 
--- ---------------------------------------------------------------------------
--- Registry Rules (API method/path allowlists per domain)
--- ---------------------------------------------------------------------------
+-- =========================================================================
+-- REGISTRY RULES  (API method/path allowlists per domain)
+-- =========================================================================
 
 -- Google Sheets
 INSERT OR IGNORE INTO registry_rules (id, app_id, domain, allowed_methods, path_pattern, rate_limit, is_active, created_at, updated_at)
@@ -326,9 +349,9 @@ VALUES (
     60, 1, datetime('now'), datetime('now')
 );
 
--- ---------------------------------------------------------------------------
--- Firewall Rules
--- ---------------------------------------------------------------------------
+-- =========================================================================
+-- FIREWALL RULES
+-- =========================================================================
 
 -- Block Google admin console
 INSERT OR IGNORE INTO firewall_rules (id, app_id, rule_type, pattern, action, priority, is_active, created_at, updated_at)
@@ -354,7 +377,7 @@ VALUES (
     datetime('now'), datetime('now')
 );
 
--- Block internal metadata endpoints (cloud environments)
+-- Block cloud metadata endpoints
 INSERT OR IGNORE INTO firewall_rules (id, app_id, rule_type, pattern, action, priority, is_active, created_at, updated_at)
 VALUES (
     '60000000-0000-0000-0000-000000000004',
@@ -362,7 +385,7 @@ VALUES (
     datetime('now'), datetime('now')
 );
 
--- Block localhost/internal access
+-- Block localhost / loopback
 INSERT OR IGNORE INTO firewall_rules (id, app_id, rule_type, pattern, action, priority, is_active, created_at, updated_at)
 VALUES (
     '60000000-0000-0000-0000-000000000005',
@@ -377,9 +400,9 @@ VALUES (
     datetime('now'), datetime('now')
 );
 
--- ---------------------------------------------------------------------------
--- Alert Configs (token usage limits)
--- ---------------------------------------------------------------------------
+-- =========================================================================
+-- ALERT CONFIGS  (token usage limits)
+-- =========================================================================
 
 -- Global daily limit for the test app
 INSERT OR IGNORE INTO alert_configs (id, app_id, limit_type, provider_id, threshold, hard_limit, is_active, created_at, updated_at)
@@ -390,9 +413,9 @@ VALUES (
     datetime('now'), datetime('now')
 );
 
--- ---------------------------------------------------------------------------
--- Mock Capture  (a demo mock – returns a fake Google Sheets response)
--- ---------------------------------------------------------------------------
+-- =========================================================================
+-- MOCK CAPTURE  (demo – works without real credentials)
+-- =========================================================================
 
 INSERT OR IGNORE INTO mock_captures (id, provider_id, app_id, method, url_pattern, request_headers, request_body, response_status, response_headers, response_body, is_simulation, created_at, updated_at)
 VALUES (

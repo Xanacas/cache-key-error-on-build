@@ -7,6 +7,10 @@ set -e
 # All requests go through the proxy using the pre-configured dummy API key.
 # The proxy swaps the dummy key for the real credential before forwarding.
 #
+# Credentials live in the database and are configured through the admin
+# panel at http://localhost:3000.  Mock tests pass without real credentials.
+# Real API tests pass once you've configured credentials via admin.
+#
 # Expects:
 #   PROXY_HOST / PROXY_PORT  – proxy address  (default: proxy:8888)
 #   MGMT_URL                 – management API (default: http://proxy:8889)

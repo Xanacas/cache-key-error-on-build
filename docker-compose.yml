@@ -8,12 +8,10 @@ version: "3.8"
 #            registry rules, firewall rules, alert configs, mock captures
 #
 # Usage:
-#   cp .env.example .env        # edit .env to add real API credentials
+#   cp .env.example .env
 #   docker compose up --build
-#
-# The only things you need to provide are real credentials:
-#   GOOGLE_API_KEY, MIRO_ACCESS_TOKEN, ASANA_ACCESS_TOKEN
-# Everything else is pre-configured.
+#   Open http://localhost:3000, log in, configure credentials for
+#   Google (OAuth client_id + secret), Miro, and Asana.
 # ==========================================================================
 
 services:
@@ -26,9 +24,6 @@ services:
       - shared-data:/app/data
     environment:
       - DATA_DIR=/app/data
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-REPLACE_WITH_REAL_GOOGLE_API_KEY}
-      - MIRO_ACCESS_TOKEN=${MIRO_ACCESS_TOKEN:-REPLACE_WITH_REAL_MIRO_TOKEN}
-      - ASANA_ACCESS_TOKEN=${ASANA_ACCESS_TOKEN:-REPLACE_WITH_REAL_ASANA_TOKEN}
 
   # --- 2. Proxy: Rust MITM proxy + management API ---
   proxy:

@@ -22,35 +22,21 @@ else
 fi
 
 # -----------------------------------------------------------------------
-# 2. Prepare seed SQL with real credentials from env vars
-# -----------------------------------------------------------------------
-SEED_SQL=$(cat /init/seed.sql)
-
-# Substitute credential placeholders with env vars (or keep placeholder)
-GOOGLE_KEY="${GOOGLE_API_KEY:-REPLACE_WITH_REAL_GOOGLE_API_KEY}"
-MIRO_TOKEN="${MIRO_ACCESS_TOKEN:-REPLACE_WITH_REAL_MIRO_TOKEN}"
-ASANA_TOKEN="${ASANA_ACCESS_TOKEN:-REPLACE_WITH_REAL_ASANA_TOKEN}"
-
-SEED_SQL="${SEED_SQL//__GOOGLE_API_KEY__/$GOOGLE_KEY}"
-SEED_SQL="${SEED_SQL//__MIRO_ACCESS_TOKEN__/$MIRO_TOKEN}"
-SEED_SQL="${SEED_SQL//__ASANA_ACCESS_TOKEN__/$ASANA_TOKEN}"
-
-# -----------------------------------------------------------------------
-# 3. Create and seed the database
+# 2. Create and seed the database
 # -----------------------------------------------------------------------
 if [ ! -f "$DB_PATH" ]; then
     echo "Creating database and seeding..."
-    echo "$SEED_SQL" | sqlite3 "$DB_PATH"
+    sqlite3 "$DB_PATH" < /init/seed.sql
     chmod 666 "$DB_PATH"
     echo "  -> $DB_PATH (seeded)"
 else
     echo "Database already exists. Running seed with INSERT OR IGNORE..."
-    echo "$SEED_SQL" | sqlite3 "$DB_PATH"
+    sqlite3 "$DB_PATH" < /init/seed.sql
     echo "  -> Seed applied (existing data preserved)"
 fi
 
 # -----------------------------------------------------------------------
-# 4. Print summary
+# 3. Print summary
 # -----------------------------------------------------------------------
 echo ""
 echo "=== Seed Summary ==="
@@ -66,20 +52,14 @@ echo ""
 
 DUMMY_KEY=$(sqlite3 "$DB_PATH" "SELECT dummy_api_key FROM app_instances LIMIT 1;")
 echo "=== Ready ==="
-echo "  Dummy API key:  $DUMMY_KEY"
-echo "  Use this as your Bearer token when calling through the proxy."
+echo "  Dummy API key: $DUMMY_KEY"
 echo ""
-
-# Check if credentials are still placeholders
-if [ "$GOOGLE_KEY" = "REPLACE_WITH_REAL_GOOGLE_API_KEY" ]; then
-    echo "  WARNING: GOOGLE_API_KEY not set – Google API calls will fail"
-fi
-if [ "$MIRO_TOKEN" = "REPLACE_WITH_REAL_MIRO_TOKEN" ]; then
-    echo "  WARNING: MIRO_ACCESS_TOKEN not set – Miro API calls will fail"
-fi
-if [ "$ASANA_TOKEN" = "REPLACE_WITH_REAL_ASANA_TOKEN" ]; then
-    echo "  WARNING: ASANA_ACCESS_TOKEN not set – Asana API calls will fail"
-fi
-
+echo "  Next steps:"
+echo "    1. Open http://localhost:3000 (password: admin)"
+echo "    2. Go to Credentials and configure:"
+echo "       - Google:  client_id + client_secret  (OAuth)"
+echo "       - Miro:    access token               (API key)"
+echo "       - Asana:   personal access token       (API key)"
+echo "    3. Use Bearer $DUMMY_KEY through the proxy at :8888"
 echo ""
 echo "Init complete."
