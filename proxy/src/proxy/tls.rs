@@ -26,9 +26,14 @@ pub struct CaAuthority {
 
 impl CaAuthority {
     /// Load the CA from disk or generate a new self-signed CA.
+    /// Paths are configurable via `CA_CERT_PATH` and `CA_KEY_PATH` env vars.
     pub fn load_or_generate() -> Result<Self, AppError> {
-        let ca_cert_path = std::path::Path::new("ca_cert.pem");
-        let ca_key_path = std::path::Path::new("ca_key.pem");
+        let cert_path_str = std::env::var("CA_CERT_PATH")
+            .unwrap_or_else(|_| "ca_cert.pem".to_string());
+        let key_path_str = std::env::var("CA_KEY_PATH")
+            .unwrap_or_else(|_| "ca_key.pem".to_string());
+        let ca_cert_path = std::path::Path::new(&cert_path_str);
+        let ca_key_path = std::path::Path::new(&key_path_str);
 
         if ca_cert_path.exists() && ca_key_path.exists() {
             info!("Loading existing CA certificate");

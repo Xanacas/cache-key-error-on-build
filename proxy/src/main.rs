@@ -31,6 +31,16 @@ async fn management_api_handler(
     let method = req.method().clone();
 
     match (method, path.as_str()) {
+        (Method::GET, "/ca.pem") => {
+            let pem = state.ca.ca_cert_pem();
+            Ok(Response::builder()
+                .status(200)
+                .header("Content-Type", "application/x-pem-file")
+                .header("Content-Disposition", "attachment; filename=\"api-proxy-ca.pem\"")
+                .header("Access-Control-Allow-Origin", "*")
+                .body(Full::new(Bytes::from(pem)))?)
+        }
+
         (Method::GET, "/health") => {
             let body = serde_json::json!({ "status": "ok" });
             Ok(Response::builder()
