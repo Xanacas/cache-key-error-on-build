@@ -6,8 +6,7 @@ COPY package.json bun.lock* ./
 COPY prisma ./prisma/
 RUN bun install --frozen-lockfile || bun install
 
-# Generate Prisma client (dummy URL for code generation only)
-ENV DATABASE_URL="file:./placeholder.db"
+# Generate Prisma client
 RUN bunx prisma generate
 
 # Build
@@ -25,11 +24,8 @@ COPY --from=base /app/.next/standalone ./
 COPY --from=base /app/.next/static ./.next/static
 COPY --from=base /app/public ./public
 
-# Prisma needs the generated client and schema at runtime
+# Prisma needs the schema and generated client at runtime
 COPY --from=base /app/prisma ./prisma
-COPY --from=base /app/node_modules/.prisma ./node_modules/.prisma
-
-# Generated Prisma client
 COPY --from=base /app/src/generated ./src/generated
 
 EXPOSE 3000
