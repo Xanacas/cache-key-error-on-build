@@ -1,15 +1,21 @@
 version: "3.8"
 
 # ==========================================================================
-# API Proxy – Basic Deployment
+# API Proxy – Full Deployment with Test App
 #
-# Spins up: init (seed DB) -> proxy -> admin
+# Spins up: init (seed DB) -> proxy -> admin -> test-app
 # Pre-seeds: providers (Google, Miro, Asana), app, credentials,
 #            registry rules, firewall rules, alert configs, mock captures
 #
+# The test-app container automatically:
+#   - Installs the proxy CA certificate
+#   - Calls Google, Miro, and Asana APIs through the proxy
+#   - Tests firewall rules are enforced
+#   - Verifies proxy stats are tracked
+#
 # Usage:
 #   cp .env.example .env        # edit .env to add real API credentials
-#   docker compose up --build
+#   docker compose -f docker-compose.full.yml up --build
 #
 # The only things you need to provide are real credentials:
 #   GOOGLE_API_KEY, MIRO_ACCESS_TOKEN, ASANA_ACCESS_TOKEN
@@ -74,6 +80,20 @@ services:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
       - SESSION_SECRET=${SESSION_SECRET:-super-secret-session-key-change-in-prod}
       - NODE_ENV=production
+    depends_on:
+      proxy:
+        condition: service_healthy
+
+  # --- 4. Test App: exercises Google, Miro, Asana through proxy ---
+  test-app:
+    build:
+      context: ./deploy/test-app
+      dockerfile: Dockerfile
+    environment:
+      - PROXY_HOST=proxy
+      - PROXY_PORT=8888
+      - MGMT_URL=http://proxy:8889
+      - DUMMY_API_KEY=proxy_testapp_00000000-0000-0000-0000-000000000001
     depends_on:
       proxy:
         condition: service_healthy
